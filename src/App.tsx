@@ -140,7 +140,7 @@ export default function Dashboard() {
         type: numericString ? 'number' : [...types][0],
       }
     })
-  }, [events])
+  }, [normalizedEvents])
 
   const numericFields = discoveredFields.filter((field) => field.type === 'number')
   const primaryNumericField = numericFields[0]?.key
@@ -308,22 +308,6 @@ export default function Dashboard() {
                 {loading ? <RefreshCw size={14} className="animate-spin" /> : <Link2 size={14} />}
                 Visualize data
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const demo = {
-                    baseUrl: 'https://jsonplaceholder.typicode.com',
-                    topicName: 'Public JSON demo',
-                    apiKey: 'demo',
-                  }
-                  setConnection(demo)
-                  connect(demo)
-                }}
-                disabled={loading}
-                className="mt-3 h-10 w-full rounded-md border border-[#234866] bg-[#07111f] text-sm font-semibold text-[#73ddf8] hover:border-[#22d3ee] disabled:opacity-60"
-              >
-                Load public demo data
-              </button>
             </div>
           </section>
         ) : (
@@ -333,14 +317,16 @@ export default function Dashboard() {
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#73ddf8]">Live topic</p>
                 <h1 className="mt-1 text-2xl font-semibold tracking-tight">{connection.topicName}</h1>
               </div>
-              <button
-                onClick={() => connect()}
-                disabled={loading}
-                className="flex h-9 items-center gap-2 rounded-md border border-[#234866] bg-[#0b1828] px-3 text-xs font-semibold text-[#b9d7e9] shadow-sm hover:border-[#22d3ee]"
-              >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                Refresh data
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => connect()}
+                  disabled={loading}
+                  className="flex h-9 items-center gap-2 rounded-md border border-[#234866] bg-[#0b1828] px-3 text-xs font-semibold text-[#b9d7e9] shadow-sm hover:border-[#22d3ee]"
+                >
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                  Refresh data
+                </button>
+              </div>
             </section>
 
             <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -368,7 +354,8 @@ export default function Dashboard() {
                     <article key={card.field.key} className="min-h-[112px] rounded-lg border border-[#17324d] bg-[#0b1828] p-4 shadow-[0_5px_18px_rgba(0,0,0,.12)]">
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-xs font-semibold capitalize text-[#b9d7e9]" title={card.field.key}>
-                          {card.field.key.replace(/[._]/g, ' ')}
+                          <span className="block text-[9px] uppercase tracking-[.12em] text-[#73ddf8]">Trend / feature</span>
+                          <span className="mt-1 block truncate">{card.field.key.replace(/[._]/g, ' ')}</span>
                         </p>
                         <span className="rounded-full border border-[#234866] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#73ddf8]">
                           {card.format}

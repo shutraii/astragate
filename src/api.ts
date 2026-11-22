@@ -113,7 +113,7 @@ export async function discoverTopic(config: Omit<ConnectionConfig, 'topicId'>): 
 
 export async function fetchEvents(config: ConnectionConfig): Promise<PulseEvent[]> {
   if (!isConfigured(config)) {
-    throw new Error('Add VITE_PUBLIC_BASE_URL, VITE_TOPIC_ID and VITE_API_KEY to .env')
+    throw new Error('Enter the public base URL and API key')
   }
 
   const response = await fetch(`${config.baseUrl}/v1/topics/${encodeURIComponent(config.topicId)}/events`, {
