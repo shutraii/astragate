@@ -21,7 +21,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react'
-import { discoverTopic, getConnectionConfig } from './api'
+import { getConnectionConfig } from './api'
 import type { PulseEvent } from './types'
 
 type Connection = {
@@ -62,11 +62,11 @@ function flattenRecord(value: unknown, prefix = '', result: Record<string, unkno
   return result
 }
 
-export default function Dashboard() {
+export default function Dashboard({ initialTopicId = '' }: { initialTopicId?: string }) {
   const initial = getConnectionConfig()
   const [connection, setConnection] = useState<Connection>({
     baseUrl: initial.baseUrl,
-    topicName: '',
+    topicName: initialTopicId,
     apiKey: initial.apiKey,
   })
   const [events, setEvents] = useState<PulseEvent[]>([])
@@ -85,17 +85,25 @@ export default function Dashboard() {
     setLoading(true)
     setError('')
     try {
-      const discovered = await discoverTopic({
-        baseUrl: nextConnection.baseUrl,
-        apiKey: nextConnection.apiKey,
+      const response = await fetch('/api/visualize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          baseUrl: nextConnection.baseUrl,
+          apiKey: nextConnection.apiKey,
+          topicId: initialTopicId || nextConnection.topicName || undefined,
+        }),
       })
-      setConnection({ ...nextConnection, topicName: discovered.topicId })
-      setEvents(discovered.events)
-      setSelected(discovered.events[0] || null)
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to read JSON')
+
+      setConnection({ ...nextConnection, topicName: payload.topicId || 'data-source' })
+      setEvents(payload.events || [])
+      setSelected((payload.events || [])[0] || null)
       setConnected(true)
     } catch (err) {
       setConnected(false)
-      setError(err instanceof Error ? err.message : 'Unable to connect to the topic.')
+      setError(err instanceof Error ? err.message : 'Unable to read JSON from the Base URL.')
     } finally {
       setLoading(false)
     }
@@ -103,6 +111,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (initial.baseUrl && initial.apiKey) connect(connection)
+    else if (initialTopicId && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      setConnection((current) => ({
+        ...current,
+        baseUrl: current.baseUrl || 'http://localhost:8000',
+      }))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-hooks
   }, [])
 
@@ -271,7 +285,7 @@ export default function Dashboard() {
               </div>
               <h1 className="mt-5 text-2xl font-semibold tracking-tight">Configure connection</h1>
               <p className="mt-2 text-sm leading-6 text-[#8da5b8]">
-                Enter the Cloudflare tunnel base URL and API key. PULSE GATE will detect the associated topic and visualize the returned fields automatically.
+                Enter the API Base URL and API key. PULSE GATE can visualize JSON directly, even when no topic endpoint is available.
               </p>
 
               <div className="mt-7 space-y-5">
@@ -314,7 +328,7 @@ export default function Dashboard() {
           <>
             <section className="mb-5 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#73ddf8]">Live topic</p>
+                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#73ddf8]">Live data source</p>
                 <h1 className="mt-1 text-2xl font-semibold tracking-tight">{connection.topicName}</h1>
               </div>
               <div className="flex items-center gap-2">

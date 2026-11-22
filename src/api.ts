@@ -45,26 +45,75 @@ function topicFromPayload(payload: unknown): string {
   return ''
 }
 
-export async function discoverTopic(config: Omit<ConnectionConfig, 'topicId'>): Promise<{ topicId: string; events: PulseEvent[] }> {
-  if (!config.baseUrl || !config.apiKey) {
-    throw new Error('Enter a base URL and API key')
+function extractEventRecords(payload: unknown): PulseEvent[] {
+  if (Array.isArray(payload)) return payload as PulseEvent[]
+  if (!payload || typeof payload !== 'object') return []
+
+  const record = payload as Record<string, unknown>
+  for (const key of ['events', 'data', 'items', 'results', 'records', 'content', 'list']) {
+    if (Array.isArray(record[key])) return record[key] as PulseEvent[]
+  }
+
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && value.length) return value as PulseEvent[]
+  }
+
+  return [payload as PulseEvent]
+}
+
+export async function discoverTopic(
+  config: Omit<ConnectionConfig, 'topicId'> & { topicId?: string },
+): Promise<{ topicId: string; events: PulseEvent[] }> {
+  if (!config.baseUrl) {
+    throw new Error('Enter a base URL')
   }
 
   const headers = {
-    Authorization: `Bearer ${config.apiKey}`,
+    ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
     Accept: 'application/json',
   }
   const baseUrl = config.baseUrl.replace(/\/$/, '')
+
+  try {
+    const exactResponse = await fetch(baseUrl, { headers })
+    if (exactResponse.ok) {
+      const exactPayload = await exactResponse.json()
+      const exactEvents = extractEventRecords(exactPayload)
+      if (exactEvents.length) {
+        const exactTopic = topicFromPayload(exactPayload) || config.topicId || 'data-source'
+        return { topicId: exactTopic, events: exactEvents }
+      }
+    }
+  } catch {
+    // Continue with known broker endpoint shapes.
+  }
+
+  if (config.topicId) {
+    try {
+      const directResponse = await fetch(
+        `${baseUrl}/v1/topics/${encodeURIComponent(config.topicId)}/events`,
+        { headers },
+      )
+      if (directResponse.ok) {
+        const directPayload = await directResponse.json()
+        const events = extractEventRecords(directPayload)
+        if (events.length) return { topicId: config.topicId, events }
+      }
+    } catch {
+      // Fall through to topic discovery.
+    }
+  }
+
   const probeUrls = [
     `${baseUrl}/v1/topics`,
     `${baseUrl}/v1/topics/me`,
     `${baseUrl}/v1/topic`,
     `${baseUrl}/v1/me`,
     `${baseUrl}/v1/events`,
-    baseUrl,
     `${baseUrl}/posts`,
     `${baseUrl}/users`,
     `${baseUrl}/todos`,
+    baseUrl,
   ]
 
   for (const url of probeUrls) {
@@ -92,11 +141,7 @@ export async function discoverTopic(config: Omit<ConnectionConfig, 'topicId'>): 
 
       if (payload && typeof payload === 'object') {
         const record = payload as Record<string, unknown>
-        const events = Array.isArray(record.events)
-          ? record.events as PulseEvent[]
-          : Array.isArray(record.data)
-            ? record.data as PulseEvent[]
-            : []
+        const events = extractEventRecords(payload)
         const topicId = topicFromPayload(payload) ||
           (events[0] ? topicFromPayload(events[0]) : '')
 
@@ -108,7 +153,7 @@ export async function discoverTopic(config: Omit<ConnectionConfig, 'topicId'>): 
     }
   }
 
-  throw new Error('No topic could be detected for this API key')
+  throw new Error('Could not reach or read JSON from this Base URL')
 }
 
 export async function fetchEvents(config: ConnectionConfig): Promise<PulseEvent[]> {
